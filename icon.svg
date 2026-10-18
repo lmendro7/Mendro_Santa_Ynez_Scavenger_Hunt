@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Mendro Scavenger Hunt">
+  <rect width="512" height="512" rx="96" fill="#0e1712"/>
+  <path d="M256 96c-70 0-128 58-128 128 0 92 128 192 128 192s128-100 128-192c0-70-58-128-128-128z" fill="#2f7d4f" opacity=".18"/>
+  <path d="M318 150c-86 6-150 62-150 140 0 14 2 26 6 38 76-4 132-50 138-120 1-16 2-40 6-58z" fill="#5cc78a"/>
+  <circle cx="212" cy="286" r="52" fill="none" stroke="#eaf5ee" stroke-width="22"/>
+  <path d="M252 326l58 58" stroke="#eaf5ee" stroke-width="26" stroke-linecap="round"/>
+</svg>

@@ -6,9 +6,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Mendro SY Hunt">
+<meta name="apple-mobile-web-app-title" content="Mendro Hunt">
 <meta name="theme-color" content="#0e1712">
 <title>Mendro Scavenger Hunt</title>
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
@@ -36,6 +37,11 @@
   </div>
 </header>
 <ul id="list"></ul>
+<div id="tools">
+  <button class="btn" id="exp">&#8615; Backup</button>
+  <button class="btn" id="imp">&#8613; Restore</button>
+  <input id="impFile" type="file" accept="application/json,.json" hidden>
+</div>
 <div id="status">Photos are saved on this device only.</div>
 <div id="lb" hidden>
   <div class="lbtop">
@@ -48,6 +54,6 @@
 <input id="file" type="file" accept="image/*" capture="environment">
 <div id="toast"></div>
 <script src="data.js" defer></script>
-<script src="app.js?v=2" defer></script>
+<script src="app.js?v=3" defer></script>
 </body>
 </html>
