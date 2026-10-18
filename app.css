@@ -70,3 +70,11 @@ body.lb-open{overflow:hidden}
   padding:10px 12px calc(10px + env(safe-area-inset-bottom))}
 #tools .btn{min-width:104px}
 header{padding-top:calc(env(safe-area-inset-top) + 6px)}
+
+/* --- offline/reliability pass --- */
+[hidden] { display: none !important; }
+li.hide { display: none !important; }
+#stage { touch-action: none; overscroll-behavior: contain; }
+body.lb-open { overflow: hidden; }
+#tools { display: flex; gap: 8px; padding: 0 14px 10px; }
+#tools .btn { flex: 1; }

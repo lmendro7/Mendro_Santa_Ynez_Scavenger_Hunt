@@ -1,60 +1,33 @@
 "use strict";
 
-var CACHE = "mendro-shell-v3";
-var IMG_CACHE = "mendro-refs-v1";
-var IMG_MAX = 260;
+var SHELL = "mendro-shell-v4";
+var IMGS = "mendro-refs-v2";
+var IMG_MAX = 150;
+var ASSETS = ["./", "./index.html", "./app.css", "./app.js", "./data.js",
+              "./manifest.webmanifest", "./icon.svg"];
 
-var SHELL = [
-  "./",
-  "./index.html",
-  "./app.css",
-  "./app.js",
-  "./data.js",
-  "./manifest.webmanifest",
-  "./icon.svg"
-];
+function abs(p) { return new URL(p, self.location).href; }
 
 self.addEventListener("install", function (e) {
-  e.waitUntil(
-    caches.open(CACHE).then(function (c) {
-      return Promise.all(SHELL.map(function (u) {
-        return c.add(new Request(u, { cache: "reload" }))["catch"](function () {});
-      }));
-    }).then(function () { return self.skipWaiting(); })
-  );
+  e.waitUntil(caches.open(SHELL).then(function (c) {
+    return Promise.all(ASSETS.map(function (p) {
+      return c.add(new Request(abs(p), { cache: "reload" }))["catch"](function () {});
+    }));
+  }).then(function () { return self.skipWaiting(); }));
 });
 
 self.addEventListener("activate", function (e) {
-  e.waitUntil(
-    caches.keys().then(function (keys) {
-      return Promise.all(keys.map(function (k) {
-        if (k !== CACHE && k !== IMG_CACHE) return caches["delete"](k);
-      }));
-    }).then(function () { return self.clients.claim(); })
-  );
+  e.waitUntil(caches.keys().then(function (ks) {
+    return Promise.all(ks.map(function (k) {
+      if (k !== SHELL && k !== IMGS) return caches["delete"](k);
+    }));
+  }).then(function () { return self.clients.claim(); }));
 });
 
 function trim(c) {
-  c.keys().then(function (keys) {
-    var over = keys.length - IMG_MAX;
-    for (var i = 0; i < over; i++) c["delete"](keys[i]);
-  });
-}
-
-function cacheFirst(name, req, cap) {
-  return caches.open(name).then(function (c) {
-    return c.match(req, { ignoreSearch: true }).then(function (hit) {
-      if (hit) return hit;
-      return fetch(req).then(function (res) {
-        if (res && (res.ok || res.type === "opaque")) {
-          c.put(req, res.clone())["catch"](function () {});
-          if (cap) trim(c);
-        }
-        return res;
-      })["catch"](function () {
-        return Response.error();
-      });
-    });
+  c.keys().then(function (ks) {
+    var over = ks.length - IMG_MAX;
+    for (var i = 0; i < over; i++) c["delete"](ks[i]);
   });
 }
 
@@ -64,18 +37,47 @@ self.addEventListener("fetch", function (e) {
   var url = new URL(req.url);
 
   if (url.hostname === "upload.wikimedia.org") {
-    e.respondWith(cacheFirst(IMG_CACHE, req, true));
+    e.respondWith(caches.open(IMGS).then(function (c) {
+      return c.match(req).then(function (hit) {
+        if (hit) return hit;
+        return fetch(req).then(function (res) {
+          if (res && (res.ok || res.type === "opaque")) {
+            c.put(req, res.clone())["catch"](function () {});
+            trim(c);
+          }
+          return res;
+        })["catch"](function () { return Response.error(); });
+      });
+    }));
     return;
   }
+
   if (req.mode === "navigate") {
-    e.respondWith(
-      caches.match("./index.html").then(function (hit) {
-        return hit || fetch(req)["catch"](function () { return caches.match("./"); });
-      })
-    );
+    e.respondWith(caches.open(SHELL).then(function (c) {
+      return fetch(req).then(function (res) {
+        if (res && res.ok) c.put(abs("./index.html"), res.clone())["catch"](function () {});
+        return res;
+      })["catch"](function () {
+        return c.match(abs("./index.html")).then(function (hit) {
+          return hit || c.match(abs("./"));
+        });
+      });
+    }));
     return;
   }
+
   if (url.origin === self.location.origin) {
-    e.respondWith(cacheFirst(CACHE, req, false));
+    var clean = new URL(url.href);
+    clean.search = "";
+    var r2 = new Request(clean.href);
+    e.respondWith(caches.open(SHELL).then(function (c) {
+      return c.match(r2).then(function (hit) {
+        var net = fetch(req).then(function (res) {
+          if (res && res.ok) c.put(r2, res.clone())["catch"](function () {});
+          return res;
+        })["catch"](function () { return hit; });
+        return hit || net;
+      });
+    }));
   }
 });
