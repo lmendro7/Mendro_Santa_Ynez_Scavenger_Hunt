@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Mendro SY Hunt">
+<meta name="theme-color" content="#0e1712">
+<title>Mendro_Santa_Ynez_Scavenger_Hunt</title>
+<style>
+body{margin:0;background:#0e1712;color:#e9f1eb;font:16px/1.5 -apple-system,BlinkMacSystemFont,sans-serif;padding:24px}
+h1{font-size:18px;margin:0 0 4px}p{color:#93ab9d;font-size:14px;margin:0 0 18px}
+.card{background:#1a2a20;border:1px solid #2a3d31;border-radius:14px;padding:14px;margin-bottom:10px;font-size:14px}
+b{color:#7ed08a}
+</style>
+</head>
+<body>
+<h1>Mendro Scavenger Hunt</h1>
+<p>Stub build — pipeline test</p>
+<div class="card" id="s">Checking browser storage…</div>
+<div class="card">If you can read this on your phone, GitHub Pages and the home-screen icon both work.</div>
+<script>
+const el = document.getElementById('s');
+const req = indexedDB.open('mendro-test', 1);
+req.onupgradeneeded = () => req.result.createObjectStore('x');
+req.onsuccess = () => el.innerHTML = 'IndexedDB: <b>OK</b>';
+req.onerror = () => el.innerHTML = 'IndexedDB: <b>blocked</b> (private browsing?)';
+</script>
+</body>
+</html>
