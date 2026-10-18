@@ -3,6 +3,7 @@
 var SPECIES = window.SPECIES || [];
 var GROUP_ICON = { P: "\uD83C\uDF3F", I: "\uD83E\uDD8B", M: "\uD83E\uDD8C", B: "\uD83D\uDC26", H: "\uD83E\uDD8E" };
 var DB_NAME = "mendro-hunt";
+var API = "https://en.wikipedia.org/w/api.php";
 
 var db = null;
 var found = new Set();
@@ -10,6 +11,7 @@ var filter = "all";
 var query = "";
 var pending = null;
 var myURLs = new Map();
+var lbURL = null;
 
 var $ = function (s) { return document.querySelector(s); };
 var listEl = $("#list");
@@ -79,60 +81,74 @@ function allKeys(store) {
   });
 }
 
-/* ---------- reference photos from Wikipedia ---------- */
+/* ---------- reference photos via the MediaWiki action API ---------- */
 
-function upsize(url, w) {
-  return url.replace(/\/(\d+)px-/, "/" + w + "px-");
+function apiThumb(title) {
+  var u = API + "?action=query&format=json&formatversion=2&origin=*&redirects=1" +
+    "&prop=pageimages&piprop=thumbnail&pithumbsize=640&titles=" + encodeURIComponent(title);
+  return fetch(u).then(function (r) {
+    if (!r.ok) throw new Error("api " + r.status);
+    return r.json();
+  }).then(function (j) {
+    var p = j.query && j.query.pages && j.query.pages[0];
+    return (p && p.thumbnail && p.thumbnail.source) || null;
+  });
 }
 
-function fetchRef(sp) {
-  var titles = [sp[3], sp[4]].filter(Boolean);
-  var idx = 0;
-  function next() {
-    if (idx >= titles.length) return Promise.resolve(null);
-    var t = titles[idx++];
-    var url = "https://en.wikipedia.org/api/rest_v1/page/summary/" + encodeURIComponent(t);
-    return fetch(url).then(function (r) {
-      if (!r.ok) return next();
-      return r.json().then(function (j) {
-        var src = (j.thumbnail && j.thumbnail.source) || (j.originalimage && j.originalimage.source);
-        if (!src) return next();
-        return fetch(upsize(src, 640)).then(function (x) {
-          if (!x.ok) return next();
-          return x.blob();
-        });
-      });
-    })["catch"](next);
+function getRefUrl(sp) {
+  return get("refs", sp[3]).then(function (cached) {
+    if (typeof cached === "string" && cached) return cached;
+    return apiThumb(sp[3]).then(function (u) {
+      if (u) return u;
+      return sp[4] ? apiThumb(sp[4]) : null;
+    }).then(function (u) {
+      if (!u) return null;
+      return put("refs", sp[3], u).then(function () { return u; });
+    });
+  });
+}
+
+var refQueue = [];
+var refActive = 0;
+var REF_MAX = 4;
+
+function queueRef(i) {
+  if (refQueue.indexOf(i) === -1) refQueue.push(i);
+  pumpRef();
+}
+
+function pumpRef() {
+  while (refActive < REF_MAX && refQueue.length) {
+    refActive++;
+    var i = refQueue.shift();
+    var done = function () {
+      refActive--;
+      setTimeout(pumpRef, 80);
+    };
+    loadRef(i).then(done, done);
   }
-  return next();
+}
+
+function loadRef(i) {
+  var sp = SPECIES[i];
+  var img = listEl.querySelector('img.r[data-i="' + i + '"]');
+  if (!img) return Promise.resolve();
+  return getRefUrl(sp).then(function (url) {
+    if (!url) return;
+    img.onload = function () { img.classList.add("on"); };
+    img.onerror = function () { img.classList.remove("on"); };
+    img.src = url;
+  });
 }
 
 var io = new IntersectionObserver(function (entries) {
   entries.forEach(function (e) {
     if (e.isIntersecting) {
       io.unobserve(e.target);
-      loadRef(+e.target.dataset.i);
+      queueRef(+e.target.dataset.i);
     }
   });
 }, { rootMargin: "300px" });
-
-function loadRef(i) {
-  var sp = SPECIES[i];
-  var img = listEl.querySelector('img.r[data-i="' + i + '"]');
-  if (!img) return;
-  get("refs", sp[3]).then(function (cached) {
-    if (cached) return cached;
-    return fetchRef(sp).then(function (b) {
-      if (b) return put("refs", sp[3], b).then(function () { return b; });
-      return null;
-    });
-  }).then(function (blob) {
-    if (!blob) return;
-    var url = URL.createObjectURL(blob);
-    img.onload = function () { img.classList.add("on"); };
-    img.src = url;
-  })["catch"](function () {});
-}
 
 /* ---------- render ---------- */
 
@@ -145,7 +161,7 @@ function render() {
     li.dataset.found = found.has(keyOf(i)) ? "1" : "0";
     li.innerHTML =
       '<div class="thumb"><span class="ph">' + (GROUP_ICON[sp[2]] || "?") + '</span>' +
-      '<img class="r" data-i="' + i + '" alt="">' +
+      '<img class="r" data-i="' + i + '" alt="" loading="lazy">' +
       '<span class="mine" data-act="zoom" hidden><img alt=""></span></div>' +
       '<div class="b"><h3>' + esc(sp[0]) + '<span class="lat">' + esc(sp[1]) + '</span></h3>' +
       '<p>' + esc(sp[5]) + '</p>' +
@@ -248,6 +264,7 @@ listEl.addEventListener("click", function (e) {
   var i = +li.dataset.i;
   var btn = e.target.closest("[data-act]");
   var act = btn && btn.dataset.act;
+
   if (act === "cam") {
     pending = i;
     fileEl.value = "";
@@ -274,16 +291,10 @@ listEl.addEventListener("click", function (e) {
   }
   if (e.target.closest(".thumb")) {
     var sp = SPECIES[i];
-    get("refs", sp[3]).then(function (cached) {
-      if (cached) return cached;
-      return fetchRef(sp).then(function (b) {
-        if (b) return put("refs", sp[3], b).then(function () { return b; });
-        return null;
-      });
-    }).then(function (b) {
-      if (!b) { toast("No reference photo found"); return; }
-      openLB(URL.createObjectURL(b), sp[0] + " \u00B7 " + sp[1]);
-    });
+    getRefUrl(sp).then(function (url) {
+      if (!url) { toast("No reference photo found"); return; }
+      openLB(url, sp[0] + " \u00B7 " + sp[1]);
+    })["catch"](function () { toast("Couldn't reach Wikipedia"); });
   }
 });
 
@@ -305,6 +316,8 @@ function applyZoom(animate) {
 
 function openLB(url, caption) {
   if (!url) { toast("No image"); return; }
+  if (lbURL && lbURL.indexOf("blob:") === 0) URL.revokeObjectURL(lbURL);
+  lbURL = url;
   pz = { s: 1, x: 0, y: 0 };
   lbImg.src = url;
   capEl.textContent = caption || "";
@@ -378,6 +391,8 @@ stageEl.addEventListener("pointercancel", function (e) {
 function closeLB() {
   lb.hidden = true;
   lbImg.removeAttribute("src");
+  if (lbURL && lbURL.indexOf("blob:") === 0) URL.revokeObjectURL(lbURL);
+  lbURL = null;
 }
 
 $("#lbx").addEventListener("click", closeLB);
